@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic Tac Toe Extended</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    h1 { margin: 10px; }
+    #controls {
+      margin: 10px;
+    }
+    #board {
+      display: grid;
+      gap: 2px;
+      background: #222;
+      margin-top: 15px;
+      position: relative;
+    }
+    .cell {
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+      cursor: pointer;
+      user-select: none;
+      aspect-ratio: 1 / 1;
+    }
+    .winner-cell {
+      color: red !important;
+      font-weight: bold;
+    }
+    #overlay {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 255, 255, 0.95);
+      border: 2px solid #333;
+      padding: 20px 40px;
+      border-radius: 10px;
+      font-size: 1.5em;
+      font-weight: bold;
+      text-align: center;
+      z-index: 999;
+      box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <h1>Extended Tic Tac Toe</h1>
+  
+  <div id="controls">
+    <label>Board size:
+      <input id="boardSize" type="number" min="3" max="20" value="3">
+    </label>
+    <label>Win length:
+      <input id="winLength" type="number" min="3" max="10" value="3">
+    </label>
+    <label>Start as: 
+      <select id="startMarker">
+        <option value="X">X</option>
+        <option value="O">O</option>
+      </select>
+    </label>
+    <button id="startBtn">Start Game</button>
+  </div>
+
+  <div id="board">
+    <div id="overlay"></div>
+  </div>
+  <div id="message"></div>
+
+  <script>
+    const boardDiv = document.getElementById("board");
+    const message = document.getElementById("message");
+    const boardSizeInput = document.getElementById("boardSize");
+    const winLengthInput = document.getElementById("winLength");
+
+    let boardSize = 3;
+    let winLength = 3;
+    let currentPlayer = "X";
+    let boardState = [];
+
+    function updateWinLengthInput() {
+      boardSize = parseInt(boardSizeInput.value);
+      let minWin, maxWin;
+      if (boardSize === 3) {
+        minWin = maxWin = 3;
+      } else if (boardSize < 6) {
+        minWin = 4;
+        maxWin = boardSize;
+      } else {
+        minWin = 4;
+        maxWin = boardSize;
+      }
+      winLengthInput.min = minWin;
+      winLengthInput.max = maxWin;
+      if (parseInt(winLengthInput.value) < minWin || parseInt(winLengthInput.value) > maxWin) {
+        winLengthInput.value = minWin;
+      }
+    }
+
+    boardSizeInput.addEventListener("change", updateWinLengthInput);
+
+    function createBoard() {
+      document.getElementById("overlay").style.display = "none";
+      boardDiv.innerHTML = '<div id="overlay"></div>';
+
+      boardDiv.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
+      boardDiv.style.width = Math.min(window.innerWidth, window.innerHeight) * 0.9 + "px";
+
+      boardState = Array.from({ length: boardSize }, () => Array(boardSize).fill(""));
+
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          cell.onclick = handleMove;
+          boardDiv.appendChild(cell);
+        }
+      }
+      message.textContent = `Player ${currentPlayer}'s turn (need ${winLength} in a row)`;
+    }
+
+    function handleMove(e) {
+      const r = parseInt(e.target.dataset.row);
+      const c = parseInt(e.target.dataset.col);
+
+      if (boardState[r][c] !== "") return;
+
+      boardState[r][c] = currentPlayer;
+      e.target.textContent = currentPlayer;
+
+      let winningCells = checkWin(r, c);
+      if (winningCells) {
+        highlightWinningCells(winningCells);
+        showOverlay(`🎉 Player ${currentPlayer} wins!`);
+        disableBoard();
+        return;
+      }
+
+      if (isDraw()) {
+        showOverlay("It's a draw!");
+        disableBoard();
+        return;
+      }
+
+      currentPlayer = currentPlayer === "X" ? "O" : "X";
+      message.textContent = `Player ${currentPlayer}'s turn`;
+    }
+
+    function checkWin(row, col) {
+      const directions = [
+        [1, 0],  // horizontal
+        [0, 1],  // vertical
+        [1, 1],  // diagonal
+        [1, -1], // anti-diagonal
+      ];
+
+      for (let [dr, dc] of directions) {
+        let cells = getLine(row, col, dr, dc);
+        if (cells.length >= winLength) {
+          return cells;
+        }
+      }
+      return null;
+    }
+
+    function getLine(r, c, dr, dc) {
+      let cells = [];
+      let i = r, j = c;
+      // back
+      while (
+        i >= 0 && i < boardSize &&
+        j >= 0 && j < boardSize &&
+        boardState[i][j] === currentPlayer
+      ) {
+        cells.push([i, j]);
+        i -= dr;
+        j -= dc;
+      }
+      // forward
+      i = r + dr;
+      j = c + dc;
+      while (
+        i >= 0 && i < boardSize &&
+        j >= 0 && j < boardSize &&
+        boardState[i][j] === currentPlayer
+      ) {
+        cells.push([i, j]);
+        i += dr;
+        j += dc;
+      }
+      return cells.length >= winLength ? cells : [];
+    }
+
+    function highlightWinningCells(cells) {
+      cells.forEach(([r, c]) => {
+        let cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+        if (cell) {
+          cell.classList.add("winner-cell");
+        }
+      });
+    }
+
+    function isDraw() {
+      return boardState.flat().every(cell => cell !== "");
+    }
+
+    function disableBoard() {
+      [...document.querySelectorAll(".cell")].forEach(cell => cell.onclick = null);
+    }
+
+    function showOverlay(text) {
+      let overlay = document.getElementById("overlay");
+      overlay.textContent = text;
+      overlay.style.display = "block";
+    }
+
+    function validateInput(size, length) {
+      if (size === 3 && length !== 3) {
+        alert("3×3 board only allows 3 in a row.");
+        return 3;
+      }
+      if (size > 3 && length < 4) {
+        alert(size + "×" + size + " board can only play 4 or more in a row.");
+        return 4;
+      }
+      if (length === 5 && size < 6) {
+        alert("For 5 in a row, the board must be at least 6×6.");
+        return Math.max(6, size, 5);
+      }
+      if (length > size) {
+        alert("Win length cannot be greater than board size!");
+        return size;
+      }
+      return length;
+    }
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      boardSize = parseInt(boardSizeInput.value);
+      winLength = parseInt(winLengthInput.value);
+      winLength = validateInput(boardSize, winLength);
+      winLengthInput.value = winLength;
+      currentPlayer = document.getElementById("startMarker").value;
+      createBoard();
+    });
+
+    // Initialize
+    updateWinLengthInput();
+    createBoard();
+
+    window.addEventListener("resize", () => {
+      boardDiv.style.width = Math.min(window.innerWidth, window.innerHeight) * 0.9 + "px";
+    });
+  </script>
+</body>
+</html>
