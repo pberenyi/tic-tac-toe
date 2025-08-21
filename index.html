@@ -13,36 +13,46 @@
       justify-content: flex-start;
       min-height: 100vh;
       margin: 0;
-      background: #f5f5f5;
+      background: #acacac;
     }
-    h1 { margin: 10px; }
+    h1 { margin: 5px; font-size: 1.5em; }
     #controls {
       margin: 10px;
-    }
-    #board {
-      display: grid;
-      gap: 2px;
-      background: #222;
-      margin-top: 15px;
-      position: relative;
     }
     .cell {
       background: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 2em;
       cursor: pointer;
       user-select: none;
       aspect-ratio: 1 / 1;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
     }
     .winner-cell {
       color: red !important;
       font-weight: bold;
     }
+    :root {
+      --cell-font-size: 2em;
+    }
+    
+    #board {
+      display: grid;
+      gap: 2px;
+      background: #222;
+      margin-top: 15px;
+    }
+    
+    .cell {
+      font-size: var(--cell-font-size);
+    }
+
     #overlay {
       display: none;
-      position: absolute;
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
@@ -55,12 +65,18 @@
       text-align: center;
       z-index: 999;
       box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
+      pointer-events: none; /* disable interactions when hidden */
+    }
+
+    #overlay.show {
+      display: block;
+      pointer-events: auto;
     }
   </style>
 </head>
 <body>
-  <h1>Extended Tic Tac Toe</h1>
-  
+  <h1>Tic Tac Toe Extended</h1>
+  <div id="message"></div>
   <div id="controls">
     <label>Board size:
       <input id="boardSize" type="number" min="3" max="20" value="3">
@@ -77,11 +93,9 @@
     <button id="startBtn">Start Game</button>
   </div>
 
-  <div id="board">
-    <div id="overlay"></div>
-  </div>
-  <div id="message"></div>
-
+  <div id="board"></div>
+  <div id="overlay"></div>
+  
   <script>
     const boardDiv = document.getElementById("board");
     const message = document.getElementById("message");
@@ -93,7 +107,7 @@
     let currentPlayer = "X";
     let boardState = [];
 
-    function updateWinLengthInput() {
+    function updateWinLengthInput() { // win length contraints
       boardSize = parseInt(boardSizeInput.value);
       let minWin, maxWin;
       if (boardSize === 3) {
@@ -115,11 +129,20 @@
     boardSizeInput.addEventListener("change", updateWinLengthInput);
 
     function createBoard() {
-      document.getElementById("overlay").style.display = "none";
-      boardDiv.innerHTML = '<div id="overlay"></div>';
+      hideOverlay();
+      boardDiv.innerHTML = '';
 
+      const maxBoardWidth = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+      const minCellSize = 20; // minimum cell size in pixels
+      const boardWidth = Math.max(boardSize * minCellSize, maxBoardWidth);
+      const cellSize = boardWidth / boardSize;
+      const fontSize = Math.max(0.5, Math.min(2, cellSize / 20));
+      
       boardDiv.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
-      boardDiv.style.width = Math.min(window.innerWidth, window.innerHeight) * 0.9 + "px";
+      boardDiv.style.width = boardWidth + "px";
+      boardDiv.style.height = boardWidth + "px";
+      
+      document.documentElement.style.setProperty('--cell-font-size', fontSize + 'em');
 
       boardState = Array.from({ length: boardSize }, () => Array(boardSize).fill(""));
 
@@ -227,25 +250,30 @@
 
     function showOverlay(text) {
       let overlay = document.getElementById("overlay");
-      overlay.textContent = text;
-      overlay.style.display = "block";
+      overlay.innerHTML = text + '<br><br><button onclick="hideOverlay(); createBoard();">OK</button>';
+      overlay.classList.add("show");
+    }
+
+    function hideOverlay() {
+      let overlay = document.getElementById("overlay");
+      overlay.classList.remove("show");
     }
 
     function validateInput(size, length) {
       if (size === 3 && length !== 3) {
-        alert("3×3 board only allows 3 in a row.");
+        showOverlay("3×3 board only allows 3 in a row.");
         return 3;
       }
       if (size > 3 && length < 4) {
-        alert(size + "×" + size + " board can only play 4 or more in a row.");
+        showOverlay(size + "×" + size + " board can only play 4 or more in a row.");
         return 4;
       }
       if (length === 5 && size < 6) {
-        alert("For 5 in a row, the board must be at least 6×6.");
-        return Math.max(6, size, 5);
+        showOverlay("For 5 in a row, the board must be at least 6×6.");
+        return 5;
       }
       if (length > size) {
-        alert("Win length cannot be greater than board size!");
+        showOverlay("Win length cannot be greater than board size!");
         return size;
       }
       return length;
@@ -254,8 +282,25 @@
     document.getElementById("startBtn").addEventListener("click", () => {
       boardSize = parseInt(boardSizeInput.value);
       winLength = parseInt(winLengthInput.value);
-      winLength = validateInput(boardSize, winLength);
-      winLengthInput.value = winLength;
+      
+      const maxBoardWidth = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+      const minCellSize = 20;
+      const maxPossibleSize = Math.floor(maxBoardWidth / minCellSize);
+      
+      if (boardSize > maxPossibleSize) {
+        showOverlay(`Board size reduced to ${maxPossibleSize} to fit on screen with minimum cell size.`);
+        boardSize = maxPossibleSize;
+        boardSizeInput.value = boardSize;
+        return;
+      }
+      
+      const validatedLength = validateInput(boardSize, winLength);
+      if (validatedLength !== winLength) {
+        winLength = validatedLength;
+        winLengthInput.value = winLength;
+        return;
+      }
+      
       currentPlayer = document.getElementById("startMarker").value;
       createBoard();
     });
@@ -265,7 +310,15 @@
     createBoard();
 
     window.addEventListener("resize", () => {
-      boardDiv.style.width = Math.min(window.innerWidth, window.innerHeight) * 0.9 + "px";
+      const maxBoardWidth = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+      const minCellSize = 20;
+      const boardWidth = Math.max(boardSize * minCellSize, maxBoardWidth);
+      const cellSize = boardWidth / boardSize;
+      const fontSize = Math.max(0.5, Math.min(2, cellSize / 20));
+      
+      boardDiv.style.width = boardWidth + "px";
+      boardDiv.style.height = boardWidth + "px";
+      document.documentElement.style.setProperty('--cell-font-size', fontSize + 'em');
     });
   </script>
 </body>
